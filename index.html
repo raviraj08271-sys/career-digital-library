@@ -1,0 +1,203 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Self Study Point Management</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial;background:#f1f5f9;color:#172033}
+header{background:#173b67;color:white;padding:20px}
+header h2{margin:0 0 8px}
+nav{display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}
+button{border:0;border-radius:7px;padding:11px 14px;background:#1769aa;color:white;cursor:pointer}
+nav button{background:#fff;color:#173b67}
+main{padding:15px;max-width:1000px;margin:auto}
+.card{background:white;padding:16px;border-radius:12px;margin-bottom:15px;box-shadow:0 2px 8px #0001}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:12px}
+.stat{background:#e6f1ff;padding:15px;border-radius:10px}
+.stat strong{font-size:24px;display:block;margin-top:8px}
+input,select{width:100%;padding:12px;margin:6px 0 12px;border:1px solid #cbd5e1;border-radius:7px}
+label{font-size:14px;font-weight:bold}
+table{width:100%;border-collapse:collapse;min-width:650px}
+th,td{padding:10px;border-bottom:1px solid #ddd;text-align:left}
+.tablewrap{overflow-x:auto}
+.small{font-size:13px;color:#64748b}
+.danger{background:#b42318}
+.green{background:#18794e}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header>
+<h2>Self Study Point</h2>
+<div>Study Center Management System</div>
+<nav>
+<button onclick="show('dashboard')">Dashboard</button>
+<button onclick="show('students')">Students</button>
+<button onclick="show('add')">Add Student</button>
+<button onclick="show('fees')">Fee Records</button>
+</nav>
+</header>
+<main>
+<section id="dashboard">
+<div class="grid">
+<div class="stat">Total Students<strong id="total">0</strong></div>
+<div class="stat">Active Students<strong id="active">0</strong></div>
+<div class="stat">Total Due Fees<strong id="due">₹0</strong></div>
+<div class="stat">Available Seats<strong id="seats">50</strong></div>
+</div>
+<div class="card">
+<h3>Recent Students</h3>
+<div id="recent">No students added yet.</div>
+</div>
+</section>
+
+<section id="add" hidden>
+<div class="card">
+<h3>Add Student</h3>
+<form id="studentForm">
+<label>Student Name</label><input id="name" required>
+<label>Mobile Number</label><input id="phone" type="tel" required>
+<label>Guardian Name</label><input id="guardian">
+<label>Seat Number</label><input id="seat" required>
+<label>Monthly Fee (₹)</label><input id="fee" type="number" min="0" required>
+<label>Admission Date</label><input id="admission" type="date" required>
+<label>Student Status</label>
+<select id="status"><option value="Active">Active</option><option value="Inactive">Inactive</option></select>
+<button type="submit">Save Student</button>
+</form>
+</div>
+</section>
+
+<section id="students" hidden>
+<div class="card">
+<h3>Student Records</h3>
+<input id="search" placeholder="Search name, phone or seat..." oninput="render()">
+<div class="tablewrap"><table>
+<thead><tr><th>Name</th><th>Phone</th><th>Seat</th><th>Monthly Fee</th><th>Due</th><th>Status</th><th>Actions</th></tr></thead>
+<tbody id="studentRows"></tbody>
+</table></div>
+</div>
+</section>
+
+<section id="fees" hidden>
+<div class="card">
+<h3>Record Fee Payment</h3>
+<label>Select Student</label><select id="feeStudent"></select>
+<label>Amount Paid (₹)</label><input id="paid" type="number" min="1">
+<label>Payment Date</label><input id="payDate" type="date">
+<button onclick="payFee()">Save Payment</button>
+</div>
+<div class="card">
+<h3>Payment History</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>Date</th><th>Student</th><th>Amount</th></tr></thead>
+<tbody id="paymentRows"></tbody>
+</table></div>
+</div>
+</section>
+</main>
+
+<script>
+const KEY="ssp_students_v1";
+const PAYKEY="ssp_payments_v1";
+let students=JSON.parse(localStorage.getItem(KEY)||"[]");
+let payments=JSON.parse(localStorage.getItem(PAYKEY)||"[]");
+
+function save(){
+ localStorage.setItem(KEY,JSON.stringify(students));
+ localStorage.setItem(PAYKEY,JSON.stringify(payments));
+ render();
+}
+function show(id){
+ ["dashboard","students","add","fees"].forEach(x=>{
+  document.getElementById(x).hidden=x!==id;
+ });
+ render();
+}
+function esc(s){
+ return String(s??"").replace(/[&<>"']/g,c=>({
+ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+ }[c]));
+}
+function money(n){return "₹"+Number(n||0).toLocaleString("en-IN")}
+function studentDue(s){
+ return Math.max(0,Number(s.charged||0)-Number(s.paid||0));
+}
+document.getElementById("studentForm").addEventListener("submit",e=>{
+ e.preventDefault();
+ const name=document.getElementById("name").value.trim();
+ const phone=document.getElementById("phone").value.trim();
+ const seat=document.getElementById("seat").value.trim();
+ const fee=Number(document.getElementById("fee").value);
+ const admission=document.getElementById("admission").value;
+ if(students.some(s=>s.seat.toLowerCase()===seat.toLowerCase())){
+  alert("This seat is already assigned.");return;
+ }
+ students.push({
+  id:Date.now(),name,phone,
+  guardian:document.getElementById("guardian").value.trim(),
+  seat,fee,admission,
+  status:document.getElementById("status").value,
+  charged:fee,paid:0
+ });
+ save();e.target.reset();show("students");
+});
+function render(){
+ document.getElementById("total").textContent=students.length;
+ document.getElementById("active").textContent=students.filter(s=>s.status==="Active").length;
+ document.getElementById("due").textContent=money(students.reduce((a,s)=>a+studentDue(s),0));
+ document.getElementById("seats").textContent=Math.max(0,50-students.filter(s=>s.status==="Active").length);
+ const q=(document.getElementById("search")?.value||"").toLowerCase();
+ document.getElementById("studentRows").innerHTML=students.filter(s=>
+  [s.name,s.phone,s.seat].some(v=>String(v).toLowerCase().includes(q))
+ ).map(s=>`<tr>
+ <td>${esc(s.name)}</td><td>${esc(s.phone)}</td><td>${esc(s.seat)}</td>
+ <td>${money(s.fee)}</td><td>${money(studentDue(s))}</td><td>${esc(s.status)}</td>
+ <td><button onclick="historyView(${s.id})">History</button>
+ <button class="green" onclick="toggleStatus(${s.id})">${s.status==="Active"?"Deactivate":"Activate"}</button>
+ <button class="danger" onclick="removeStudent(${s.id})">Delete</button></td></tr>`
+ ).join("");
+ document.getElementById("recent").innerHTML=students.slice(-5).reverse().map(s=>
+  `<p>${esc(s.name)} — Seat ${esc(s.seat)} — Due ${money(studentDue(s))}</p>`
+ ).join("")||"No students added yet.";
+ document.getElementById("feeStudent").innerHTML=students.map(s=>
+  `<option value="${s.id}">${esc(s.name)} — Seat ${esc(s.seat)} — Due ${money(studentDue(s))}</option>`
+ ).join("");
+ document.getElementById("paymentRows").innerHTML=payments.slice().reverse().map(p=>
+  `<tr><td>${esc(p.date)}</td><td>${esc(p.name)}</td><td>${money(p.amount)}</td></tr>`
+ ).join("");
+}
+function payFee(){
+ const id=Number(document.getElementById("feeStudent").value);
+ const amount=Number(document.getElementById("paid").value);
+ const date=document.getElementById("payDate").value;
+ const s=students.find(x=>x.id===id);
+ if(!s||!Number.isFinite(amount)||amount<=0||!date){alert("Select a student, amount and date.");return}
+ s.paid=Number(s.paid||0)+amount;
+ payments.push({id:Date.now(),studentId:s.id,name:s.name,amount,date});
+ save();
+ document.getElementById("paid").value="";
+ alert("Payment recorded.");
+}
+function toggleStatus(id){
+ const s=students.find(x=>x.id===id);if(!s)return;
+ s.status=s.status==="Active"?"Inactive":"Active";save();
+}
+function removeStudent(id){
+ if(!confirm("Delete this student record?"))return;
+ students=students.filter(s=>s.id!==id);save();
+}
+function historyView(id){
+ const s=students.find(x=>x.id===id);if(!s)return;
+ const list=payments.filter(p=>p.studentId===id);
+ alert("Student: "+s.name+"\nTotal charged: "+money(s.charged)+
+ "\nTotal paid: "+money(s.paid)+"\nDue: "+money(studentDue(s))+
+ "\n\nPayments:\n"+(list.map(p=>p.date+" - "+money(p.amount)).join("\n")||"No payments yet"));
+}
+render();
+</script>
+</body>
+</html>
